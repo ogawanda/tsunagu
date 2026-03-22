@@ -19,6 +19,8 @@ export default function NewHandover() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [keywords, setKeywords] = useState("");
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -44,6 +46,24 @@ export default function NewHandover() {
     };
     init();
   }, []);
+
+  const generateContent = async () => {
+    if (!keywords.trim()) return;
+    setGenerating(true);
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keywords, category, priority }),
+      });
+      const data = await res.json();
+      if (data.text) setContent(data.text);
+    } catch {
+      alert("AI生成に失敗しました。もう一度お試しください。");
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -170,6 +190,30 @@ export default function NewHandover() {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               引き継ぎ内容 <span className="text-red-500">*</span>
             </label>
+
+            {/* AI生成エリア */}
+            <div className="mb-3 bg-blue-50 border border-blue-100 rounded-xl p-3">
+              <p className="text-xs font-medium text-blue-700 mb-2">✨ AIで文章を自動生成</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={keywords}
+                  onChange={(e) => setKeywords(e.target.value)}
+                  placeholder="キーワードを入力（例：3番ライン ポンプ 異音）"
+                  className="flex-1 border border-blue-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={generateContent}
+                  disabled={generating || !keywords.trim()}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-40 transition-colors whitespace-nowrap"
+                >
+                  {generating ? "生成中..." : "AI生成"}
+                </button>
+              </div>
+              <p className="text-xs text-blue-500 mt-1.5">キーワードを入力してAI生成を押すと、引き継ぎ文章が自動で作成されます</p>
+            </div>
+
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
