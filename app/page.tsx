@@ -37,6 +37,7 @@ export default function Home() {
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [userName, setUserName] = useState("");
   const [members, setMembers] = useState<string[]>([]);
+  const [categoryList, setCategoryList] = useState<string[]>([]);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -65,6 +66,13 @@ export default function Home() {
           const { data: memberData } = await supabase
             .from("members").select("name").order("created_at");
           if (memberData) setMembers(memberData.map((m: { name: string }) => m.name));
+          const { data: catData } = await supabase
+            .from("categories").select("name").order("created_at");
+          if (catData && catData.length > 0) {
+            setCategoryList(["すべて", ...catData.map((c: { name: string }) => c.name)]);
+          } else {
+            setCategoryList(["すべて", "設備", "安全", "品質", "その他"]);
+          }
         }
       }
       fetchHandovers();
@@ -149,6 +157,12 @@ export default function Home() {
               従業員管理
             </button>
             <button
+              onClick={() => router.push("/categories")}
+              className="text-blue-200 hover:text-white text-xs transition-colors"
+            >
+              カテゴリ管理
+            </button>
+            <button
               onClick={async () => { await supabase.auth.signOut(); router.push("/login"); }}
               className="text-blue-600 hover:text-blue-400 text-xs transition-colors opacity-30 hover:opacity-60"
             >
@@ -192,7 +206,7 @@ export default function Home() {
 
         {/* カテゴリフィルター */}
         <div className="flex gap-2 flex-wrap mb-4">
-          {CATEGORIES.map((cat) => (
+          {(categoryList.length > 0 ? categoryList : CATEGORIES).map((cat) => (
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}

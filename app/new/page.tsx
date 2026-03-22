@@ -5,14 +5,18 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 type Member = { id: string; name: string };
+type Category = { id: string; name: string };
+
+const DEFAULT_CATEGORIES = ["設備", "安全", "品質", "その他"];
 
 export default function NewHandover() {
   const router = useRouter();
-  const [category, setCategory] = useState("設備");
+  const [category, setCategory] = useState("");
   const [priority, setPriority] = useState("中");
   const [content, setContent] = useState("");
   const [author, setAuthor] = useState("");
   const [members, setMembers] = useState<Member[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -27,6 +31,15 @@ export default function NewHandover() {
         const { data: memberData } = await supabase
           .from("members").select("id, name").order("created_at");
         if (memberData) setMembers(memberData);
+        const { data: catData } = await supabase
+          .from("categories").select("id, name").order("created_at");
+        if (catData && catData.length > 0) {
+          setCategories(catData);
+          setCategory(catData[0].name);
+        } else {
+          setCategories(DEFAULT_CATEGORIES.map((n, i) => ({ id: String(i), name: n })));
+          setCategory(DEFAULT_CATEGORIES[0]);
+        }
       }
     };
     init();
@@ -105,20 +118,25 @@ export default function NewHandover() {
 
           {/* カテゴリ */}
           <div className="bg-white rounded-xl shadow-sm border p-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">カテゴリ</label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">カテゴリ</label>
+              <button type="button" onClick={() => router.push("/categories")} className="text-xs text-blue-500 hover:underline">
+                カテゴリ管理
+              </button>
+            </div>
             <div className="flex gap-2 flex-wrap">
-              {["設備", "安全", "品質", "その他"].map((cat) => (
+              {categories.map((cat) => (
                 <button
                   type="button"
-                  key={cat}
-                  onClick={() => setCategory(cat)}
+                  key={cat.id}
+                  onClick={() => setCategory(cat.name)}
                   className={`px-4 py-2 rounded-full text-sm border transition-colors ${
-                    category === cat
+                    category === cat.name
                       ? "bg-blue-600 text-white border-blue-600"
                       : "bg-white text-gray-600 border-gray-300 hover:border-blue-400"
                   }`}
                 >
-                  {cat}
+                  {cat.name}
                 </button>
               ))}
             </div>
