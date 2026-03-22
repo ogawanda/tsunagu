@@ -36,6 +36,7 @@ export default function Home() {
   const [commentAuthor, setCommentAuthor] = useState("");
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [userName, setUserName] = useState("");
+  const [members, setMembers] = useState<string[]>([]);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -61,6 +62,9 @@ export default function Home() {
         if (profile) {
           setCompanyId(profile.company_id);
           setUserName(profile.name);
+          const { data: memberData } = await supabase
+            .from("members").select("name").order("created_at");
+          if (memberData) setMembers(memberData.map((m: { name: string }) => m.name));
         }
       }
       fetchHandovers();
@@ -274,12 +278,24 @@ export default function Home() {
                   {/* コメント入力 */}
                   {openCommentId === item.id ? (
                     <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
-                      <input
-                        value={commentAuthor}
-                        onChange={(e) => setCommentAuthor(e.target.value)}
-                        placeholder="名前（任意）"
-                        className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                      />
+                      {members.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {members.map((name) => (
+                            <button
+                              key={name}
+                              type="button"
+                              onClick={() => setCommentAuthor(name)}
+                              className={`px-3 py-1 rounded-full text-xs border transition-all ${
+                                commentAuthor === name
+                                  ? "bg-blue-600 text-white border-blue-600"
+                                  : "bg-white text-slate-600 border-slate-200 hover:border-blue-300"
+                              }`}
+                            >
+                              {name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       <textarea
                         value={commentText}
                         onChange={(e) => setCommentText(e.target.value)}
