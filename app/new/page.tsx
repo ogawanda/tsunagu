@@ -39,7 +39,7 @@ export default function NewHandover() {
 
     setSaving(false);
     if (error) {
-      alert("登録に失敗しました。もう一度試してください。");
+      alert(`登録に失敗しました。\nエラー: ${error.message}\ncode: ${error.code}`);
     } else {
       router.push("/");
     }
