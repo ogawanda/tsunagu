@@ -51,6 +51,12 @@ export default function Home() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
   const [showArchived, setShowArchived] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const fetchHandovers = async (date?: string) => {
     const { data, error } = await supabase
@@ -92,23 +98,28 @@ export default function Home() {
   }, []);
 
   const toggleCheck = async (id: string, current: boolean) => {
-    await supabase.from("handovers").update({ is_checked: !current }).eq("id", id);
+    const { error } = await supabase.from("handovers").update({ is_checked: !current }).eq("id", id);
+    if (error) { showToast("更新に失敗しました", "error"); return; }
     fetchHandovers(selectedDate);
   };
 
   const deleteHandover = async (id: string) => {
     if (!confirm("この引き継ぎを削除しますか？")) return;
-    await supabase.from("handovers").delete().eq("id", id);
+    const { error } = await supabase.from("handovers").delete().eq("id", id);
+    if (error) { showToast("削除に失敗しました", "error"); return; }
+    showToast("削除しました");
     fetchHandovers(selectedDate);
   };
 
   const archiveHandover = async (id: string, current: boolean) => {
-    await supabase.from("handovers").update({ is_archived: !current }).eq("id", id);
+    const { error } = await supabase.from("handovers").update({ is_archived: !current }).eq("id", id);
+    if (error) { showToast("操作に失敗しました", "error"); return; }
+    showToast(current ? "アーカイブを解除しました" : "アーカイブしました");
     fetchHandovers(selectedDate);
   };
 
   const duplicateHandover = async (item: Handover) => {
-    await supabase.from("handovers").insert({
+    const { error } = await supabase.from("handovers").insert({
       category: item.category,
       content: item.content,
       priority: item.priority,
@@ -118,6 +129,8 @@ export default function Home() {
       company_id: companyId,
       shift: item.shift ?? "朝",
     });
+    if (error) { showToast("複製に失敗しました", "error"); return; }
+    showToast("複製しました");
     fetchHandovers(selectedDate);
   };
 
@@ -129,20 +142,23 @@ export default function Home() {
 
   const saveEdit = async (id: string) => {
     if (!editContent.trim()) return;
-    await supabase.from("handovers").update({ content: editContent.trim() }).eq("id", id);
+    const { error } = await supabase.from("handovers").update({ content: editContent.trim() }).eq("id", id);
+    if (error) { showToast("保存に失敗しました", "error"); return; }
     setEditingId(null);
     setEditContent("");
+    showToast("保存しました");
     fetchHandovers(selectedDate);
   };
 
   const addComment = async (handoverId: string) => {
     if (!commentText.trim()) return;
-    await supabase.from("comments").insert({
+    const { error } = await supabase.from("comments").insert({
       handover_id: handoverId,
       content: commentText.trim(),
       author: commentAuthor.trim() || userName || "名無し",
       company_id: companyId,
     });
+    if (error) { showToast("コメントの送信に失敗しました", "error"); return; }
     setCommentText("");
     setCommentAuthor("");
     setOpenCommentId(null);
@@ -388,6 +404,15 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-slate-50">
+      {/* トースト通知 */}
+      {toast && (
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-medium text-white transition-all ${
+          toast.type === "error" ? "bg-red-500" : "bg-emerald-500"
+        }`}>
+          {toast.message}
+        </div>
+      )}
+
       <header className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-4 shadow-lg">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div>
@@ -400,24 +425,26 @@ export default function Home() {
                 未確認 {uncheckedCount}件
               </span>
             )}
-            <button
-              onClick={() => router.push("/members")}
-              className="text-blue-200 hover:text-white text-xs transition-colors"
-            >
-              従業員管理
-            </button>
-            <button
-              onClick={() => router.push("/categories")}
-              className="text-blue-200 hover:text-white text-xs transition-colors"
-            >
-              カテゴリ管理
-            </button>
-            <button
-              onClick={async () => { await supabase.auth.signOut(); router.push("/login"); }}
-              className="text-blue-600 hover:text-blue-400 text-xs transition-colors opacity-30 hover:opacity-60"
-            >
-              ログアウト
-            </button>
+            <div className="hidden sm:flex items-center gap-2">
+              <button
+                onClick={() => router.push("/members")}
+                className="text-blue-200 hover:text-white text-xs transition-colors"
+              >
+                従業員管理
+              </button>
+              <button
+                onClick={() => router.push("/categories")}
+                className="text-blue-200 hover:text-white text-xs transition-colors"
+              >
+                カテゴリ管理
+              </button>
+              <button
+                onClick={async () => { await supabase.auth.signOut(); router.push("/login"); }}
+                className="text-blue-600 hover:text-blue-400 text-xs transition-colors opacity-30 hover:opacity-60"
+              >
+                ログアウト
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -432,6 +459,28 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* モバイル用ナビ */}
+      <div className="sm:hidden max-w-2xl mx-auto px-4 pt-3 flex gap-2">
+        <button
+          onClick={() => router.push("/members")}
+          className="flex-1 bg-white border border-slate-200 text-slate-600 text-xs py-2 rounded-lg shadow-sm"
+        >
+          従業員管理
+        </button>
+        <button
+          onClick={() => router.push("/categories")}
+          className="flex-1 bg-white border border-slate-200 text-slate-600 text-xs py-2 rounded-lg shadow-sm"
+        >
+          カテゴリ管理
+        </button>
+        <button
+          onClick={async () => { await supabase.auth.signOut(); router.push("/login"); }}
+          className="bg-white border border-slate-200 text-slate-400 text-xs py-2 px-3 rounded-lg shadow-sm"
+        >
+          ログアウト
+        </button>
+      </div>
 
       <div className="max-w-2xl mx-auto px-4 py-4">
         <div className="flex items-center justify-between mb-3">

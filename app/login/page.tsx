@@ -84,7 +84,16 @@ export default function Login() {
             </button>
           </form>
 
-          <div className="mt-5 pt-4 border-t border-slate-100 text-center">
+          <div className="mt-3 text-center">
+            <button
+              onClick={() => router.push("/reset-password")}
+              className="text-sm text-slate-400 hover:text-blue-500 transition-colors"
+            >
+              パスワードをお忘れの方はこちら
+            </button>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-slate-100 text-center">
             <p className="text-sm text-slate-500">
               アカウントをお持ちでない方は{" "}
               <button
