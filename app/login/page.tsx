@@ -86,8 +86,9 @@ export default function Login() {
 
           <div className="mt-3 text-center">
             <button
+              type="button"
               onClick={() => router.push("/reset-password")}
-              className="text-sm text-slate-400 hover:text-blue-500 transition-colors"
+              className="text-sm text-blue-500 hover:text-blue-700 underline transition-colors"
             >
               パスワードをお忘れの方はこちら
             </button>
@@ -97,6 +98,7 @@ export default function Login() {
             <p className="text-sm text-slate-500">
               アカウントをお持ちでない方は{" "}
               <button
+                type="button"
                 onClick={() => router.push("/signup")}
                 className="text-blue-600 font-medium hover:underline"
               >
