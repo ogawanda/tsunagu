@@ -14,10 +14,13 @@ type Handover = {
   created_at: string;
 };
 
+const CATEGORIES = ["すべて", "設備", "安全", "品質", "その他"];
+
 export default function Home() {
   const router = useRouter();
   const [handovers, setHandovers] = useState<Handover[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState("すべて");
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -26,6 +29,7 @@ export default function Home() {
       .from("handovers")
       .select("*")
       .eq("date", today)
+      .order("priority", { ascending: true })
       .order("created_at", { ascending: false });
 
     if (!error && data) setHandovers(data);
@@ -52,6 +56,14 @@ export default function Home() {
 
   const displayDate = today.replace(/-/g, "/");
 
+  const filtered = selectedCategory === "すべて"
+    ? handovers
+    : handovers.filter((h) => h.category === selectedCategory);
+
+  const highPriorityCount = handovers.filter(
+    (h) => h.priority === "高" && !h.is_checked
+  ).length;
+
   return (
     <main className="min-h-screen bg-gray-50">
       <header className="bg-blue-600 text-white px-4 py-4 shadow">
@@ -59,7 +71,16 @@ export default function Home() {
         <p className="text-sm text-blue-200">工場引き継ぎメモアプリ</p>
       </header>
 
-      <div className="max-w-2xl mx-auto px-4 py-6">
+      {/* 重要度「高」アラート */}
+      {highPriorityCount > 0 && (
+        <div className="bg-red-50 border-l-4 border-red-500 px-4 py-3 mx-4 mt-4 rounded-r-lg max-w-2xl mx-auto">
+          <p className="text-red-700 text-sm font-medium">
+            ⚠️ 重要度「高」の未確認が {highPriorityCount} 件あります
+          </p>
+        </div>
+      )}
+
+      <div className="max-w-2xl mx-auto px-4 py-4">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-700">
             本日の引き継ぎ（{displayDate}）
@@ -72,25 +93,46 @@ export default function Home() {
           </button>
         </div>
 
+        {/* カテゴリフィルター */}
+        <div className="flex gap-2 flex-wrap mb-4">
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-3 py-1 rounded-full text-sm border transition-colors ${
+                selectedCategory === cat
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : "bg-white text-gray-600 border-gray-300 hover:border-blue-400"
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
         {loading ? (
           <p className="text-center text-gray-400 py-10">読み込み中...</p>
-        ) : handovers.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="text-center text-gray-400 py-10">
-            <p>本日の引き継ぎはまだありません</p>
+            <p>引き継ぎはまだありません</p>
             <p className="text-sm mt-1">「＋ 新規登録」から追加してください</p>
           </div>
         ) : (
           <div className="space-y-3">
-            {handovers.map((item) => (
+            {filtered.map((item) => (
               <div
                 key={item.id}
                 className={`bg-white rounded-xl shadow-sm border p-4 ${
                   item.is_checked ? "opacity-60" : ""
+                } ${
+                  item.priority === "高" && !item.is_checked
+                    ? "border-red-300 ring-1 ring-red-200"
+                    : ""
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                         {item.category}
                       </span>
