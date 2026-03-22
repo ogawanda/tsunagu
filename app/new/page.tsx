@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -21,6 +21,8 @@ export default function NewHandover() {
   const [saving, setSaving] = useState(false);
   const [keywords, setKeywords] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -46,6 +48,28 @@ export default function NewHandover() {
     };
     init();
   }, []);
+
+  const searchSimilar = async (kw: string) => {
+    if (!kw.trim()) { setSuggestions([]); return; }
+    const words = kw.trim().split(/\s+/);
+    // 最初のキーワードでSupabaseを検索（ilike）
+    const { data } = await supabase
+      .from("handovers")
+      .select("content")
+      .ilike("content", `%${words[0]}%`)
+      .order("created_at", { ascending: false })
+      .limit(10);
+    if (!data) return;
+    // 重複を除去して最大5件に絞る
+    const unique = [...new Set(data.map((h) => h.content))].slice(0, 5);
+    setSuggestions(unique);
+  };
+
+  const handleKeywordsChange = (value: string) => {
+    setKeywords(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => searchSimilar(value), 500);
+  };
 
   const generateContent = async () => {
     if (!keywords.trim()) return;
@@ -198,7 +222,7 @@ export default function NewHandover() {
                 <input
                   type="text"
                   value={keywords}
-                  onChange={(e) => setKeywords(e.target.value)}
+                  onChange={(e) => handleKeywordsChange(e.target.value)}
                   placeholder="キーワードを入力（例：3番ライン ポンプ 異音）"
                   className="flex-1 border border-blue-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
                 />
@@ -212,6 +236,25 @@ export default function NewHandover() {
                 </button>
               </div>
               <p className="text-xs text-blue-500 mt-1.5">キーワードを入力してAI生成を押すと、引き継ぎ文章が自動で作成されます</p>
+
+              {/* 過去の似た引き継ぎ候補 */}
+              {suggestions.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-xs font-medium text-slate-500 mb-1.5">📋 過去の似た引き継ぎ（タップで入力）</p>
+                  <div className="space-y-1.5">
+                    {suggestions.map((s, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => { setContent(s); setSuggestions([]); }}
+                        className="w-full text-left text-xs text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 hover:bg-blue-50 hover:border-blue-300 transition-colors leading-relaxed"
+                      >
+                        {s.length > 80 ? s.slice(0, 80) + "..." : s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <textarea
