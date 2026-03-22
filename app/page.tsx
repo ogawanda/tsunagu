@@ -31,12 +31,6 @@ const CATEGORIES = ["すべて", "設備", "安全", "品質", "その他"];
 const SHIFTS = ["朝", "昼", "夜"];
 const today = new Date().toISOString().split("T")[0];
 
-const LANGUAGES = [
-  { code: "ja", label: "🇯🇵 日本語" },
-  { code: "en", label: "🇺🇸 English" },
-  { code: "vi", label: "🇻🇳 Tiếng Việt" },
-  { code: "zh", label: "🇨🇳 中文" },
-];
 
 export default function Home() {
   const router = useRouter();
@@ -55,9 +49,6 @@ export default function Home() {
   const [selectedAuthor, setSelectedAuthor] = useState("すべて");
   const [selectedDate, setSelectedDate] = useState(today);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [selectedLang, setSelectedLang] = useState("ja");
-  const [translations, setTranslations] = useState<Record<string, string>>({});
-  const [translating, setTranslating] = useState(false);
   const [editContent, setEditContent] = useState("");
   const [showArchived, setShowArchived] = useState(false);
 
@@ -156,36 +147,6 @@ export default function Home() {
     setCommentAuthor("");
     setOpenCommentId(null);
     fetchHandovers(selectedDate);
-  };
-
-  const switchLanguage = async (lang: string) => {
-    setSelectedLang(lang);
-    if (lang === "ja") return;
-    const untranslated = handovers.filter((h) => !translations[`${lang}:${h.id}`]);
-    if (untranslated.length === 0) return;
-    setTranslating(true);
-    try {
-      const res = await fetch("/api/translate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ texts: untranslated.map((h) => h.content), targetLang: lang }),
-      });
-      const data = await res.json();
-      const newMap: Record<string, string> = { ...translations };
-      untranslated.forEach((h, i) => {
-        newMap[`${lang}:${h.id}`] = data.translations[i] ?? h.content;
-      });
-      setTranslations(newMap);
-    } catch {
-      // 翻訳失敗時は元の日本語を表示
-    } finally {
-      setTranslating(false);
-    }
-  };
-
-  const getContent = (item: Handover) => {
-    if (selectedLang === "ja") return item.content;
-    return translations[`${selectedLang}:${item.id}`] ?? item.content;
   };
 
   const exportCSV = () => {
@@ -297,11 +258,7 @@ export default function Home() {
                 </div>
               </div>
             ) : (
-              <p className="text-slate-800 text-sm leading-relaxed">
-          {translating && selectedLang !== "ja" && !translations[`${selectedLang}:${item.id}`]
-            ? <span className="text-slate-400 italic">翻訳中...</span>
-            : getContent(item)}
-        </p>
+              <p className="text-slate-800 text-sm leading-relaxed">{item.content}</p>
             )}
 
             {/* 画像表示 */}
@@ -443,22 +400,6 @@ export default function Home() {
                 未確認 {uncheckedCount}件
               </span>
             )}
-            {/* 言語切り替え */}
-            <div className="flex items-center gap-1">
-              {LANGUAGES.map((lang) => (
-                <button
-                  key={lang.code}
-                  onClick={() => switchLanguage(lang.code)}
-                  className={`text-xs px-2 py-1 rounded-lg transition-colors ${
-                    selectedLang === lang.code
-                      ? "bg-white text-blue-700 font-bold"
-                      : "text-blue-200 hover:text-white"
-                  }`}
-                >
-                  {lang.label}
-                </button>
-              ))}
-            </div>
             <button
               onClick={() => router.push("/members")}
               className="text-blue-200 hover:text-white text-xs transition-colors"
