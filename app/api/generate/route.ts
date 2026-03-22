@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "APIキーが設定されていません" }, { status: 500 });
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-04-17" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const prompt = `あなたは工場の現場スタッフです。以下の情報をもとに、引き継ぎメモを1〜3文で作成してください。
 
