@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -10,26 +10,23 @@ export default function NewHandover() {
   const [priority, setPriority] = useState("中");
   const [content, setContent] = useState("");
   const [saving, setSaving] = useState(false);
-  const [companyId, setCompanyId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const loadProfile = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("company_id")
-          .eq("id", user.id)
-          .single();
-        if (profile) setCompanyId(profile.company_id);
-      }
-    };
-    loadProfile();
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      alert("ログインが必要です");
+      setSaving(false);
+      return;
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("company_id")
+      .eq("id", user.id)
+      .single();
 
     const { error } = await supabase.from("handovers").insert({
       category,
@@ -37,7 +34,7 @@ export default function NewHandover() {
       priority,
       date: new Date().toISOString().split("T")[0],
       is_checked: false,
-      company_id: companyId,
+      company_id: profile?.company_id ?? null,
     });
 
     setSaving(false);
