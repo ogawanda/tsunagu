@@ -1,40 +1,53 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+
+type Member = { id: string; name: string };
 
 export default function NewHandover() {
   const router = useRouter();
   const [category, setCategory] = useState("設備");
   const [priority, setPriority] = useState("中");
   const [content, setContent] = useState("");
+  const [author, setAuthor] = useState("");
+  const [members, setMembers] = useState<Member[]>([]);
+  const [companyId, setCompanyId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: profile } = await supabase
+        .from("profiles").select("company_id").eq("id", user.id).single();
+      if (profile) {
+        setCompanyId(profile.company_id);
+        const { data: memberData } = await supabase
+          .from("members").select("id, name").order("created_at");
+        if (memberData) setMembers(memberData);
+      }
+    };
+    init();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      alert("ログインが必要です");
-      setSaving(false);
+    if (!author) {
+      alert("記入者を選択してください");
       return;
     }
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("company_id")
-      .eq("id", user.id)
-      .single();
+    setSaving(true);
 
     const { error } = await supabase.from("handovers").insert({
       category,
       content,
       priority,
+      author,
       date: new Date().toISOString().split("T")[0],
       is_checked: false,
-      company_id: profile?.company_id ?? null,
+      company_id: companyId,
     });
 
     setSaving(false);
@@ -48,9 +61,7 @@ export default function NewHandover() {
   return (
     <main className="min-h-screen bg-gray-50">
       <header className="bg-blue-600 text-white px-4 py-4 shadow flex items-center gap-3">
-        <button onClick={() => router.push("/")} className="text-white text-lg">
-          ←
-        </button>
+        <button onClick={() => router.push("/")} className="text-white text-lg">←</button>
         <div>
           <h1 className="text-xl font-bold">ツナグ</h1>
           <p className="text-sm text-blue-200">新規引き継ぎ登録</p>
@@ -59,10 +70,42 @@ export default function NewHandover() {
 
       <div className="max-w-2xl mx-auto px-4 py-6">
         <form onSubmit={handleSubmit} className="space-y-5">
+
+          {/* 記入者 */}
           <div className="bg-white rounded-xl shadow-sm border p-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              カテゴリ
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              記入者 <span className="text-red-500">*</span>
             </label>
+            {members.length === 0 ? (
+              <p className="text-sm text-slate-400">
+                従業員が登録されていません。
+                <button type="button" onClick={() => router.push("/members")} className="text-blue-500 underline ml-1">
+                  従業員を追加する
+                </button>
+              </p>
+            ) : (
+              <div className="grid grid-cols-5 gap-2">
+                {members.map((m) => (
+                  <button
+                    type="button"
+                    key={m.id}
+                    onClick={() => setAuthor(m.name)}
+                    className={`py-2.5 rounded-xl text-sm font-medium border transition-all ${
+                      author === m.name
+                        ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                        : "bg-white text-gray-700 border-gray-200 hover:border-blue-400"
+                    }`}
+                  >
+                    {m.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* カテゴリ */}
+          <div className="bg-white rounded-xl shadow-sm border p-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">カテゴリ</label>
             <div className="flex gap-2 flex-wrap">
               {["設備", "安全", "品質", "その他"].map((cat) => (
                 <button
@@ -81,10 +124,9 @@ export default function NewHandover() {
             </div>
           </div>
 
+          {/* 重要度 */}
           <div className="bg-white rounded-xl shadow-sm border p-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              重要度
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">重要度</label>
             <div className="flex gap-2">
               {[
                 { label: "高", color: "bg-red-500" },
@@ -96,9 +138,7 @@ export default function NewHandover() {
                   key={label}
                   onClick={() => setPriority(label)}
                   className={`px-5 py-2 rounded-full text-sm text-white font-medium transition-opacity ${color} ${
-                    priority === label
-                      ? "opacity-100 ring-2 ring-offset-1 ring-gray-400"
-                      : "opacity-40"
+                    priority === label ? "opacity-100 ring-2 ring-offset-1 ring-gray-400" : "opacity-40"
                   }`}
                 >
                   {label}
@@ -107,6 +147,7 @@ export default function NewHandover() {
             </div>
           </div>
 
+          {/* 引き継ぎ内容 */}
           <div className="bg-white rounded-xl shadow-sm border p-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               引き継ぎ内容 <span className="text-red-500">*</span>

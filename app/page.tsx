@@ -20,6 +20,7 @@ type Handover = {
   priority: string;
   is_checked: boolean;
   created_at: string;
+  author?: string;
   comments?: Comment[];
 };
 
@@ -138,6 +139,12 @@ export default function Home() {
               </span>
             )}
             <button
+              onClick={() => router.push("/members")}
+              className="text-blue-200 hover:text-white text-xs transition-colors"
+            >
+              従業員管理
+            </button>
+            <button
               onClick={async () => { await supabase.auth.signOut(); router.push("/login"); }}
               className="text-blue-600 hover:text-blue-400 text-xs transition-colors opacity-30 hover:opacity-60"
             >
@@ -235,6 +242,9 @@ export default function Home() {
                         </span>
                       </div>
                       <p className="text-slate-800 text-sm leading-relaxed">{item.content}</p>
+                      {item.author && (
+                        <p className="text-xs text-slate-400 mt-1.5">記入: {item.author}</p>
+                      )}
                     </div>
                     <input
                       type="checkbox"
