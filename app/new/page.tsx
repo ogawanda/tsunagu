@@ -8,6 +8,14 @@ type Member = { id: string; name: string };
 type Category = { id: string; name: string };
 
 const DEFAULT_CATEGORIES = ["設備", "安全", "品質", "その他"];
+const SHIFTS = ["朝", "昼", "夜"];
+
+const getCurrentShift = () => {
+  const hour = new Date().getHours();
+  if (hour >= 6 && hour < 14) return "朝";
+  if (hour >= 14 && hour < 22) return "昼";
+  return "夜";
+};
 
 export default function NewHandover() {
   const router = useRouter();
@@ -15,6 +23,7 @@ export default function NewHandover() {
   const [priority, setPriority] = useState("中");
   const [content, setContent] = useState("");
   const [author, setAuthor] = useState("");
+  const [shift, setShift] = useState(getCurrentShift());
   const [members, setMembers] = useState<Member[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [companyId, setCompanyId] = useState<string | null>(null);
@@ -22,6 +31,9 @@ export default function NewHandover() {
   const [keywords, setKeywords] = useState("");
   const [generating, setGenerating] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -52,7 +64,6 @@ export default function NewHandover() {
   const searchSimilar = async (kw: string) => {
     if (!kw.trim()) { setSuggestions([]); return; }
     const words = kw.trim().split(/\s+/);
-    // 最初のキーワードでSupabaseを検索（ilike）
     const { data } = await supabase
       .from("handovers")
       .select("content")
@@ -60,7 +71,6 @@ export default function NewHandover() {
       .order("created_at", { ascending: false })
       .limit(10);
     if (!data) return;
-    // 重複を除去して最大5件に絞る
     const unique = [...new Set(data.map((h) => h.content))].slice(0, 5);
     setSuggestions(unique);
   };
@@ -89,6 +99,30 @@ export default function NewHandover() {
     }
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setImagePreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const uploadImage = async (file: File): Promise<string | null> => {
+    const filename = `${Date.now()}_${file.name}`;
+    const { error } = await supabase.storage
+      .from("handover-images")
+      .upload(filename, file, { upsert: true });
+    if (error) {
+      console.error("画像アップロードエラー:", error.message);
+      return null;
+    }
+    const { data } = supabase.storage
+      .from("handover-images")
+      .getPublicUrl(filename);
+    return data.publicUrl;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!author) {
@@ -97,14 +131,23 @@ export default function NewHandover() {
     }
     setSaving(true);
 
+    let imageUrl: string | null = null;
+    if (imageFile) {
+      setUploading(true);
+      imageUrl = await uploadImage(imageFile);
+      setUploading(false);
+    }
+
     const { error } = await supabase.from("handovers").insert({
       category,
       content,
       priority,
       author,
+      shift,
       date: new Date().toISOString().split("T")[0],
       is_checked: false,
       company_id: companyId,
+      ...(imageUrl ? { image_url: imageUrl } : {}),
     });
 
     setSaving(false);
@@ -158,6 +201,33 @@ export default function NewHandover() {
                 ))}
               </div>
             )}
+          </div>
+
+          {/* シフト */}
+          <div className="bg-white rounded-xl shadow-sm border p-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">シフト</label>
+            <div className="flex gap-2">
+              {SHIFTS.map((s) => {
+                const colors: Record<string, string> = {
+                  朝: "bg-orange-500",
+                  昼: "bg-sky-500",
+                  夜: "bg-indigo-500",
+                };
+                return (
+                  <button
+                    type="button"
+                    key={s}
+                    onClick={() => setShift(s)}
+                    className={`px-5 py-2 rounded-full text-sm text-white font-medium transition-opacity ${colors[s]} ${
+                      shift === s ? "opacity-100 ring-2 ring-offset-1 ring-gray-400" : "opacity-40"
+                    }`}
+                  >
+                    {s}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-xs text-slate-400 mt-1.5">現在の時間から自動選択されています</p>
           </div>
 
           {/* カテゴリ */}
@@ -237,7 +307,6 @@ export default function NewHandover() {
               </div>
               <p className="text-xs text-blue-500 mt-1.5">キーワードを入力してAI生成を押すと、引き継ぎ文章が自動で作成されます</p>
 
-              {/* 過去の似た引き継ぎ候補 */}
               {suggestions.length > 0 && (
                 <div className="mt-3">
                   <p className="text-xs font-medium text-slate-500 mb-1.5">📋 過去の似た引き継ぎ（タップで入力）</p>
@@ -267,12 +336,46 @@ export default function NewHandover() {
             />
           </div>
 
+          {/* 画像添付 */}
+          <div className="bg-white rounded-xl shadow-sm border p-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              📷 画像添付（任意）
+            </label>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <div className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                写真を選ぶ
+              </div>
+              <span className="text-xs text-slate-400">
+                {imageFile ? imageFile.name : "設備の写真などを添付できます"}
+              </span>
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleImageChange}
+                className="hidden"
+              />
+            </label>
+            {imagePreview && (
+              <div className="mt-3 relative inline-block">
+                <img src={imagePreview} alt="プレビュー" className="max-w-full rounded-lg border border-slate-200 max-h-48 object-cover" />
+                <button
+                  type="button"
+                  onClick={() => { setImageFile(null); setImagePreview(null); }}
+                  className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold hover:bg-red-600"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+          </div>
+
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || uploading}
             className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold text-base hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
-            {saving ? "登録中..." : "登録する"}
+            {uploading ? "画像アップロード中..." : saving ? "登録中..." : "登録する"}
           </button>
         </form>
       </div>
