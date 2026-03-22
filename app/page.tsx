@@ -139,7 +139,7 @@ export default function Home() {
             )}
             <button
               onClick={async () => { await supabase.auth.signOut(); router.push("/login"); }}
-              className="text-blue-200 hover:text-white text-xs transition-colors"
+              className="text-blue-600 hover:text-blue-400 text-xs transition-colors opacity-30 hover:opacity-60"
             >
               ログアウト
             </button>
