@@ -19,6 +19,7 @@ type Handover = {
   content: string;
   priority: string;
   is_checked: boolean;
+  is_archived: boolean;
   created_at: string;
   author?: string;
   comments?: Comment[];
@@ -44,6 +45,7 @@ export default function Home() {
   const [selectedDate, setSelectedDate] = useState(today);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
 
   const fetchHandovers = async (date?: string) => {
     const { data, error } = await supabase
@@ -92,6 +94,11 @@ export default function Home() {
   const deleteHandover = async (id: string) => {
     if (!confirm("この引き継ぎを削除しますか？")) return;
     await supabase.from("handovers").delete().eq("id", id);
+    fetchHandovers(selectedDate);
+  };
+
+  const archiveHandover = async (id: string, current: boolean) => {
+    await supabase.from("handovers").update({ is_archived: !current }).eq("id", id);
     fetchHandovers(selectedDate);
   };
 
@@ -146,11 +153,15 @@ export default function Home() {
   };
 
   const filtered = handovers.filter((h) => {
+    if (!showArchived && h.is_archived) return false;
+    if (showArchived && !h.is_archived) return false;
     if (selectedCategory !== "すべて" && h.category !== selectedCategory) return false;
     if (selectedAuthor !== "すべて" && h.author !== selectedAuthor) return false;
     if (searchKeyword.trim() && !h.content.includes(searchKeyword.trim())) return false;
     return true;
   });
+
+  const archivedCount = handovers.filter((h) => h.is_archived).length;
 
   const uncheckedCount = handovers.filter((h) => !h.is_checked).length;
   const highPriorityCount = handovers.filter((h) => h.priority === "高" && !h.is_checked).length;
@@ -223,11 +234,23 @@ export default function Home() {
               CSVダウンロード
             </button>
             <button
-              onClick={() => router.push("/new")}
-              className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-700 shadow-sm"
+              onClick={() => setShowArchived(!showArchived)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium shadow-sm border transition-colors ${
+                showArchived
+                  ? "bg-amber-100 text-amber-700 border-amber-200"
+                  : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
             >
-              ＋ 新規登録
+              {showArchived ? "← 通常表示" : `アーカイブ${archivedCount > 0 ? `（${archivedCount}）` : ""}`}
             </button>
+            {!showArchived && (
+              <button
+                onClick={() => router.push("/new")}
+                className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-700 shadow-sm"
+              >
+                ＋ 新規登録
+              </button>
+            )}
           </div>
         </div>
 
@@ -366,14 +389,22 @@ export default function Home() {
                     />
                   </div>
 
-                  {/* 編集・削除ボタン */}
+                  {/* 編集・削除・アーカイブボタン */}
                   {editingId !== item.id && (
-                    <div className="mt-2 flex gap-2">
+                    <div className="mt-2 flex gap-2 flex-wrap">
+                      {!showArchived && (
+                        <button
+                          onClick={() => startEdit(item)}
+                          className="text-xs text-slate-500 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 px-3 py-1 rounded-lg transition-colors"
+                        >
+                          編集
+                        </button>
+                      )}
                       <button
-                        onClick={() => startEdit(item)}
-                        className="text-xs text-slate-500 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 px-3 py-1 rounded-lg transition-colors"
+                        onClick={() => archiveHandover(item.id, item.is_archived)}
+                        className="text-xs text-slate-500 bg-slate-100 hover:bg-amber-50 hover:text-amber-600 px-3 py-1 rounded-lg transition-colors"
                       >
-                        編集
+                        {item.is_archived ? "アーカイブ解除" : "アーカイブ"}
                       </button>
                       <button
                         onClick={() => deleteHandover(item.id)}
