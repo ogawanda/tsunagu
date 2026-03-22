@@ -33,6 +33,8 @@ export default function Home() {
   const [openCommentId, setOpenCommentId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
   const [commentAuthor, setCommentAuthor] = useState("");
+  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [userName, setUserName] = useState("");
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -46,7 +48,24 @@ export default function Home() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchHandovers(); }, []);
+  useEffect(() => {
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("company_id, name")
+          .eq("id", user.id)
+          .single();
+        if (profile) {
+          setCompanyId(profile.company_id);
+          setUserName(profile.name);
+        }
+      }
+      fetchHandovers();
+    };
+    init();
+  }, []);
 
   const toggleCheck = async (id: string, current: boolean) => {
     await supabase.from("handovers").update({ is_checked: !current }).eq("id", id);
@@ -58,7 +77,8 @@ export default function Home() {
     await supabase.from("comments").insert({
       handover_id: handoverId,
       content: commentText.trim(),
-      author: commentAuthor.trim() || "名無し",
+      author: commentAuthor.trim() || userName || "名無し",
+      company_id: companyId,
     });
     setCommentText("");
     setCommentAuthor("");
@@ -117,6 +137,12 @@ export default function Home() {
                 未確認 {uncheckedCount}件
               </span>
             )}
+            <button
+              onClick={async () => { await supabase.auth.signOut(); router.push("/login"); }}
+              className="text-blue-200 hover:text-white text-xs transition-colors"
+            >
+              ログアウト
+            </button>
           </div>
         </div>
       </header>

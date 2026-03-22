@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -10,6 +10,22 @@ export default function NewHandover() {
   const [priority, setPriority] = useState("中");
   const [content, setContent] = useState("");
   const [saving, setSaving] = useState(false);
+  const [companyId, setCompanyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("company_id")
+          .eq("id", user.id)
+          .single();
+        if (profile) setCompanyId(profile.company_id);
+      }
+    };
+    loadProfile();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,6 +37,7 @@ export default function NewHandover() {
       priority,
       date: new Date().toISOString().split("T")[0],
       is_checked: false,
+      company_id: companyId,
     });
 
     setSaving(false);
