@@ -25,6 +25,7 @@ type Handover = {
 };
 
 const CATEGORIES = ["すべて", "設備", "安全", "品質", "その他"];
+const today = new Date().toISOString().split("T")[0];
 
 export default function Home() {
   const router = useRouter();
@@ -38,14 +39,17 @@ export default function Home() {
   const [userName, setUserName] = useState("");
   const [members, setMembers] = useState<string[]>([]);
   const [categoryList, setCategoryList] = useState<string[]>([]);
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [selectedAuthor, setSelectedAuthor] = useState("すべて");
+  const [selectedDate, setSelectedDate] = useState(today);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
 
-  const today = new Date().toISOString().split("T")[0];
-
-  const fetchHandovers = async () => {
+  const fetchHandovers = async (date?: string) => {
     const { data, error } = await supabase
       .from("handovers")
       .select("*, comments(*)")
-      .eq("date", today)
+      .eq("date", date ?? today)
       .order("created_at", { ascending: false });
     if (!error && data) setHandovers(data);
     setLoading(false);
@@ -75,14 +79,34 @@ export default function Home() {
           }
         }
       }
-      fetchHandovers();
+      fetchHandovers(today);
     };
     init();
   }, []);
 
   const toggleCheck = async (id: string, current: boolean) => {
     await supabase.from("handovers").update({ is_checked: !current }).eq("id", id);
-    fetchHandovers();
+    fetchHandovers(selectedDate);
+  };
+
+  const deleteHandover = async (id: string) => {
+    if (!confirm("この引き継ぎを削除しますか？")) return;
+    await supabase.from("handovers").delete().eq("id", id);
+    fetchHandovers(selectedDate);
+  };
+
+  const startEdit = (item: Handover) => {
+    setEditingId(item.id);
+    setEditContent(item.content);
+    setOpenCommentId(null);
+  };
+
+  const saveEdit = async (id: string) => {
+    if (!editContent.trim()) return;
+    await supabase.from("handovers").update({ content: editContent.trim() }).eq("id", id);
+    setEditingId(null);
+    setEditContent("");
+    fetchHandovers(selectedDate);
   };
 
   const addComment = async (handoverId: string) => {
@@ -96,7 +120,7 @@ export default function Home() {
     setCommentText("");
     setCommentAuthor("");
     setOpenCommentId(null);
-    fetchHandovers();
+    fetchHandovers(selectedDate);
   };
 
   const exportCSV = () => {
@@ -121,13 +145,16 @@ export default function Home() {
     URL.revokeObjectURL(url);
   };
 
-  const filtered = selectedCategory === "すべて"
-    ? handovers
-    : handovers.filter((h) => h.category === selectedCategory);
+  const filtered = handovers.filter((h) => {
+    if (selectedCategory !== "すべて" && h.category !== selectedCategory) return false;
+    if (selectedAuthor !== "すべて" && h.author !== selectedAuthor) return false;
+    if (searchKeyword.trim() && !h.content.includes(searchKeyword.trim())) return false;
+    return true;
+  });
 
   const uncheckedCount = handovers.filter((h) => !h.is_checked).length;
   const highPriorityCount = handovers.filter((h) => h.priority === "高" && !h.is_checked).length;
-  const displayDate = today.replace(/-/g, "/");
+  const displayDate = selectedDate.replace(/-/g, "/");
 
   const priorityColor = (p: string) => {
     if (p === "高") return "bg-red-100 text-red-700 border-red-200";
@@ -221,6 +248,45 @@ export default function Home() {
           ))}
         </div>
 
+        {/* 検索・絞り込み */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-3 mb-4 space-y-2">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              placeholder="キーワードで検索..."
+              className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
+            />
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => {
+                setSelectedDate(e.target.value);
+                fetchHandovers(e.target.value);
+              }}
+              className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
+            />
+          </div>
+          {members.length > 0 && (
+            <div className="flex gap-1.5 flex-wrap">
+              {["すべて", ...members].map((name) => (
+                <button
+                  key={name}
+                  onClick={() => setSelectedAuthor(name)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                    selectedAuthor === name
+                      ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-blue-300"
+                  }`}
+                >
+                  {name === "すべて" ? "全員" : name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* 引き継ぎ一覧 */}
         {loading ? (
           <p className="text-center text-slate-400 py-10 text-sm">読み込み中...</p>
@@ -259,7 +325,35 @@ export default function Home() {
                           {new Date(item.created_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
                         </span>
                       </div>
-                      <p className="text-slate-800 text-sm leading-relaxed">{item.content}</p>
+
+                      {/* 引き継ぎ内容（編集モード切り替え） */}
+                      {editingId === item.id ? (
+                        <div className="space-y-2">
+                          <textarea
+                            value={editContent}
+                            onChange={(e) => setEditContent(e.target.value)}
+                            rows={3}
+                            className="w-full border border-blue-300 rounded-lg px-3 py-1.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => saveEdit(item.id)}
+                              className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-700"
+                            >
+                              保存
+                            </button>
+                            <button
+                              onClick={() => { setEditingId(null); setEditContent(""); }}
+                              className="text-slate-500 px-3 py-1.5 rounded-lg text-xs hover:bg-slate-50"
+                            >
+                              キャンセル
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-slate-800 text-sm leading-relaxed">{item.content}</p>
+                      )}
+
                       {item.author && (
                         <p className="text-xs text-slate-400 mt-1.5">記入: {item.author}</p>
                       )}
@@ -271,6 +365,24 @@ export default function Home() {
                       className="mt-1 w-5 h-5 accent-blue-600 cursor-pointer flex-shrink-0"
                     />
                   </div>
+
+                  {/* 編集・削除ボタン */}
+                  {editingId !== item.id && (
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        onClick={() => startEdit(item)}
+                        className="text-xs text-slate-500 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 px-3 py-1 rounded-lg transition-colors"
+                      >
+                        編集
+                      </button>
+                      <button
+                        onClick={() => deleteHandover(item.id)}
+                        className="text-xs text-slate-500 bg-slate-100 hover:bg-red-50 hover:text-red-500 px-3 py-1 rounded-lg transition-colors"
+                      >
+                        削除
+                      </button>
+                    </div>
+                  )}
 
                   {/* コメント一覧 */}
                   {item.comments && item.comments.length > 0 && (
